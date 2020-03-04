@@ -5,12 +5,43 @@ from math import *
 
 np.set_printoptions(suppress=True)
 
-def get_from_input(file):
+def read_vertex_ref(file_to_read):
+    a1 = []
+    with open(file_to_read) as f:
+        for line in f:
+            dat = line.split()
+            a1.append(int(dat[0]))
+    return int(a1[0])
+
+def ref_vector(ref_point, vertex):
+    val = vertex[ref_point]
+    val[1] += 2 #translate y value of two
+    return val - ref_point
+
+def establish_normal(normal_vector, ref_vector, ref_vertex):
+    pass
+
+def get_from_input(file_to_read):
     """
     file must be a char
     """
-    mesh = o3d.io.read_triangle_mesh(file)
-    pcd = o3d.io.read_point_cloud(file, format='xyzrgb')
+    mesh = o3d.io.read_triangle_mesh(file_to_read)
+    pcd = o3d.io.read_point_cloud(file_to_read, format='xyzrgb')
+
+    """
+    pcd.estimate_normals()
+    pcd.normalize_normals()
+    normals_array = np.asarray(pcd.normals) #it's empty
+    """
+
+    #o3d.visualization.draw_geometries([pcd])
+
+    if(mesh.is_orientable()):
+        print("This Mesh is Orientable")
+        mesh.orient_triangles()
+
+#    help(mesh)
+#    help(o3d.io)
 
     colors_array = np.asarray(pcd.colors)
     print("Shape of colors is: ", np.shape(colors_array))
@@ -21,7 +52,17 @@ def get_from_input(file):
     vertices_array = np.asarray(mesh.vertices)
     print("Shape of vertices is: ", np.shape(vertices_array))
 
-    return triangles_array, vertices_array, colors_array
+    mesh.compute_triangle_normals(normalized=True) # directions are uncorrect
+
+    if(mesh.has_triangle_normals()):
+        print("This Mesh has triangle normals")
+        mesh.normalize_normals()
+    else:
+        print("This Mesh doentn't have triangle normals")
+
+    normals_array = np.asarray(mesh.triangle_normals)
+
+    return triangles_array, vertices_array, colors_array, normals_array
 
 def print_ply(plane, vertex, color):
     """
@@ -125,6 +166,20 @@ def proj(vec):
 
     return my_vec, my_vec_reduce
 
+def triangle_barycenter(plane, vertex):
+    """
+    this function is needed to understand
+    which from two triangles are in front
+    of each other. It will be necessary 
+    to define a method more logic
+    """
+    vec_of_bar = np.empty(shape=(len(plane),3))
+    for i in range(len(vec_of_bar)):
+        comp_x, comp_y, comp_z = concatenate(plane[i], vertex)
+        vec_of_bar[i] = np.array([np.sum(comp_x)/3., np.sum(comp_y)/3., np.sum(comp_z)/3.])
+
+    return vec_of_bar
+
 def segno(a, b, p):
     discr = 0.00001
     c = p[0]*(a[1] - b[1]) - \
@@ -144,10 +199,65 @@ def in_ex_point(a, b, c, p):
     s3 = segno(c, a, b)*segno(c, a, p)
 
     if(s1<0. and s2<0. and s3<0.):
-        return False
+        return False #the point is outside
     elif(s1>0. and s2>0. and s3>0.):
         return True #the point is inside
     else:
         return False #the point is on the border (very unprobably)
 
+#another algorithm, faster than the previous
+def in_ex_point_alt(a, b, c, p):
+
+    d = (b[0] - a[0])*(c[1] - a[1]) - (b[1] - a[1])*(c[0] - a[0])
+    a_cmp = ((p[0] - a[0])*(c[1] - a[1]) - (p[1] - a[1])*(c[0] - a[0]))/d
+    b_cmp = ((a[0] - p[0])*(b[1] - a[1]) - (a[1] - p[1])*(b[0] - a[0]))/d
+    if(a_cmp > 0 and b_cmp > 0 and a_cmp+b_cmp < 1):
+        return True
+    else:
+        return False
+
+def sun_vector(theta, phi):
+    return np.array([np.sin(theta)*np.cos(theta),
+            np.sin(theta)*np.sin(phi),
+            np.cos(theta)])
+
 #the idea now is check which point is included in a certain plain (for 2d vector of course)
+
+def compute_light_vector(plane_vec, normal_vec, sun_vec):
+    #just to check
+    if(len(plane_vec) != len(normal_vec)):
+            print("Something gone wrong")
+    new_vec = []
+    i = 0
+    for nv in normal_vec:
+        if(np.dot(nv, sun_vec) < 0.):
+            new_vec.append(plane_vec[i])
+            i += 1
+    return np.array(new_vec)
+
+
+
+
+def reduce_dimension_by_shadow(plane, vertex_2D):
+    """
+    remeber: vertex_2D is reduce plane vector,
+    with three components of couple of numbersi
+
+    It is the vertex that has been projected, not 
+    the plane. It is always the same
+    """
+
+    #to be continued...
+    new_plane = []
+    num = len(plane)
+    i = 1;
+    for sp in plane:
+        print("Compute: ", i , "/", num)
+        comp_x, comp_y, comp_z = concatenate(sp, vertex_2D)
+        i += 1
+        for vt in vertex_2D:
+            if(in_ex_point_alt(comp_x, comp_y, comp_z, vt)):
+
+    return True
+
+        
